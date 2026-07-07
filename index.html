@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — YNAB Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --paper: #14171B;
+    --paper-raised: #1B1F24;
+    --paper-raised2: #21262C;
+    --ink: #ECEDEE;
+    --ink-soft: #8B9299;
+    --rule: #2C3137;
+    --brass: #E0B84C;
+    --indigo: #7C9CE8;
+    --green: #4FD1A5;
+    --rust: #F0876B;
+    --radius: 12px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:20px 16px 60px;}
+  .masthead{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:1px solid var(--rule);
+    padding-bottom:14px;margin-bottom:22px;
+  }
+  .masthead h1{
+    font-family:'Source Serif 4',serif;
+    font-weight:700;font-size:1.7rem;margin:0;letter-spacing:-0.01em;
+    color:var(--ink);
+  }
+  .masthead .sub{font-size:0.72rem;color:var(--ink-soft);letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+  .masthead-right{text-align:right;font-size:.75rem;color:var(--ink-soft);}
+  .masthead-right button{
+    font-family:'Inter',sans-serif;font-size:.7rem;background:none;border:1px solid var(--rule);
+    color:var(--ink-soft);padding:5px 10px;border-radius:20px;cursor:pointer;margin-left:6px;
+  }
+  .masthead-right button:hover{border-color:var(--ink-soft);color:var(--ink);}
+
+  /* Setup card */
+  .setup{
+    background:var(--paper-raised);border:1px solid var(--rule);border-radius:var(--radius);
+    padding:28px 24px;margin-top:40px;
+  }
+  .setup h2{font-family:'Source Serif 4',serif;font-size:1.3rem;margin:0 0 6px;color:var(--ink);}
+  .setup p{color:var(--ink-soft);font-size:.88rem;line-height:1.5;margin:0 0 18px;}
+  .setup ol{color:var(--ink-soft);font-size:.85rem;line-height:1.7;padding-left:20px;margin:0 0 20px;}
+  .setup label{display:block;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;}
+  .setup input, .setup select{
+    width:100%;padding:11px 14px;font-family:'IBM Plex Mono',monospace;font-size:.9rem;
+    border:1px solid var(--rule);border-radius:8px;background:var(--paper-raised2);color:var(--ink);margin-bottom:14px;
+  }
+  .btn-primary{
+    background:var(--green);color:#0B1210;border:none;padding:11px 22px;
+    font-family:'Inter',sans-serif;font-weight:600;font-size:.85rem;border-radius:24px;cursor:pointer;
+  }
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-primary:disabled{opacity:.5;cursor:default;}
+  .error-msg{color:var(--rust);font-size:.82rem;margin-top:10px;}
+
+  /* Cards */
+  .card{
+    background:var(--paper-raised);border:1px solid var(--rule);border-radius:var(--radius);
+    padding:22px 22px 20px;margin-bottom:18px;
+    box-shadow:0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.25);
+  }
+  .card h3{
+    font-family:'Inter',sans-serif;font-size:.78rem;font-weight:600;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);
+    margin:0 0 16px;
+  }
+
+  /* Hero income/expense chart */
+  .hero{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end;margin-bottom:14px;}
+  .hero-num{font-family:'Inter',sans-serif;font-weight:700;font-size:2.6rem;color:var(--green);line-height:1;letter-spacing:-0.02em;}
+  .hero-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);margin-bottom:4px;}
+  .hero-stats{display:flex;gap:28px;flex-wrap:wrap;}
+  .hero-stat .v{font-family:'Inter',sans-serif;font-size:1.1rem;font-weight:600;}
+  .hero-stat .l{font-size:.68rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;}
+  .legend-row{display:flex;gap:18px;margin-bottom:10px;font-size:.72rem;color:var(--ink-soft);}
+  .legend-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;position:relative;top:-1px;}
+  canvas{max-height:220px;}
+
+  /* Net worth grid */
+  .nw-total{font-family:'Inter',sans-serif;font-size:2.1rem;font-weight:700;margin-bottom:18px;letter-spacing:-0.02em;}
+  .nw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:10px;}
+  .nw-tile{background:var(--paper-raised2);border-radius:10px;padding:12px 14px;border-left:3px solid var(--indigo);}
+  .nw-tile .l{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);}
+  .nw-tile .v{font-family:'Inter',sans-serif;font-size:1.2rem;font-weight:700;margin-top:2px;}
+  .nw-tile.debt{border-left-color:var(--rust);}
+  .nw-tile.debt .v{color:var(--rust);}
+  .nw-tile.cash{border-left-color:var(--indigo);}
+  .nw-tile.invest{border-left-color:var(--green);}
+  .nw-tile.realestate{border-left-color:var(--brass);}
+
+  .acct-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 0;border-bottom:1px solid var(--rule);font-size:.85rem;
+  }
+  .acct-row:last-child{border-bottom:none;}
+  .acct-name{color:var(--ink);}
+  .acct-bal{font-family:'IBM Plex Mono',monospace;}
+  .acct-bal.neg{color:var(--rust);}
+  .tag-btn{
+    font-size:.65rem;padding:3px 9px;border:1px solid var(--rule);border-radius:20px;
+    background:var(--paper-raised2);color:var(--ink-soft);cursor:pointer;
+  }
+  .tag-btn.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  .unclassified-note{font-size:.72rem;color:var(--brass);margin:8px 0 12px;font-style:italic;}
+
+  .group-block{margin-top:22px;}
+  .group-block:first-of-type{margin-top:24px;}
+  .group-head{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);
+    padding-bottom:8px;margin-bottom:2px;border-bottom:1px solid var(--rule);
+  }
+  .group-head .gv{font-family:'IBM Plex Mono',monospace;font-size:.82rem;letter-spacing:0;text-transform:none;color:var(--ink);}
+  .group-block.cash .group-head{border-bottom-color:var(--indigo);}
+  .group-block.invest .group-head{border-bottom-color:var(--green);}
+  .group-block.realestate .group-head{border-bottom-color:var(--brass);}
+  .group-block.debt .group-head{border-bottom-color:var(--rust);}
+  .reclassify-link{
+    font-size:.65rem;color:var(--ink-soft);text-decoration:underline;cursor:pointer;
+    background:none;border:none;padding:0;margin-top:3px;
+  }
+  .tag-row{display:none;gap:6px;margin-top:4px;}
+  .tag-row.open{display:flex;}
+
+  /* Spending */
+  .spend-row{margin-bottom:12px;}
+  .spend-top{display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px;}
+  .spend-name{color:var(--ink);}
+  .spend-amt{font-family:'IBM Plex Mono',monospace;}
+  .spend-bar-bg{height:6px;background:var(--rule);border-radius:3px;overflow:hidden;}
+  .spend-bar-fill{height:100%;background:var(--indigo);border-radius:3px;}
+
+  .loading, .empty{text-align:center;color:var(--ink-soft);font-size:.85rem;padding:40px 0;}
+  .spinner{
+    width:22px;height:22px;border:2px solid var(--rule);border-top-color:var(--ink-soft);
+    border-radius:50%;margin:0 auto 12px;animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  @media (max-width:600px){
+    .hero-num{font-size:2rem;}
+    .nw-total{font-size:1.6rem;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="masthead">
+    <div>
+      <h1>Ledger</h1>
+      <div class="sub" id="budgetName">You Need A Budget — dashboard</div>
+    </div>
+    <div class="masthead-right" id="headerActions"></div>
+  </div>
+  <div id="content">
+    <div class="loading"><div class="spinner"></div>Loading…</div>
+  </div>
+</div>
+
+<script>
+const YNAB_BASE = 'https://api.ynab.com/v1';
+let state = {
+  token: null,
+  budgetId: null,
+  budgets: [],
+  accounts: [],
+  months: [],
+  categoryGroups: [],
+  currentMonthCategories: [],
+  tags: {}
+};
+
+async function storeGet(key){
+  try{
+    if(window.storage){ const r = await window.storage.get(key, false); return r ? r.value : null; }
+  }catch(e){ /* fall through to localStorage */ }
+  try{ return window.localStorage.getItem(key); }catch(e){ return null; }
+}
+async function storeSet(key, value){
+  try{
+    if(window.storage){ await window.storage.set(key, value, false); return; }
+  }catch(e){ /* fall through to localStorage */ }
+  try{ window.localStorage.setItem(key, value); }catch(e){ console.error('storage set failed', e); }
+}
+async function storeDelete(key){
+  try{
+    if(window.storage){ await window.storage.delete(key, false); return; }
+  }catch(e){ /* fall through to localStorage */ }
+  try{ window.localStorage.removeItem(key); }catch(e){}
+}
+
+function fmtMoney(n, opts){
+  opts = opts || {};
+  const v = n/1000;
+  const sign = v < 0 ? '-' : '';
+  const abs = Math.abs(v);
+  const str = abs.toLocaleString('en-US', {minimumFractionDigits: opts.decimals ? 2 : 0, maximumFractionDigits: opts.decimals ? 2 : 0});
+  return sign + '$' + str;
+}
+
+async function ynabFetch(path){
+  const res = await fetch(YNAB_BASE + path, {
+    headers: { 'Authorization': 'Bearer ' + state.token }
+  });
+  if(!res.ok){
+    if(res.status === 401) throw new Error('Token rejected — check your Personal Access Token.');
+    throw new Error('YNAB API error (' + res.status + ')');
+  }
+  const json = await res.json();
+  return json.data;
+}
+
+function renderHeaderActions(){
+  const el = document.getElementById('headerActions');
+  if(!state.token){ el.innerHTML=''; return; }
+  el.innerHTML = `
+    ${state.budgets.length > 1 ? `<select id="budgetSwitch" style="font-family:'IBM Plex Mono',monospace;font-size:.72rem;padding:4px 8px;border-radius:6px;border:1px solid var(--rule);background:var(--paper-raised2);color:var(--ink);"></select>` : ''}
+    <button id="disconnectBtn">Disconnect</button>
+  `;
+  if(state.budgets.length > 1){
+    const sel = document.getElementById('budgetSwitch');
+    state.budgets.forEach(b => {
+      const o = document.createElement('option');
+      o.value = b.id; o.textContent = b.name;
+      if(b.id === state.budgetId) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', async (e) => {
+      state.budgetId = e.target.value;
+      await storeSet('ynab-budget-id', state.budgetId);
+      loadBudgetData();
+    });
+  }
+  document.getElementById('disconnectBtn').addEventListener('click', async () => {
+    await storeDelete('ynab-token');
+    await storeDelete('ynab-budget-id');
+    state = { token:null, budgetId:null, budgets:[], accounts:[], months:[], categoryGroups:[], currentMonthCategories:[], tags:{} };
+    renderSetup();
+  });
+}
+
+function renderSetup(errorMsg){
+  document.getElementById('budgetName').textContent = 'You Need A Budget — dashboard';
+  renderHeaderActions();
+  document.getElementById('content').innerHTML = `
+    <div class="setup">
+      <h2>Connect your budget</h2>
+      <p>This dashboard talks directly to the YNAB API from your browser. Your token is stored only for you and never leaves this device except in requests to api.ynab.com.</p>
+      <ol>
+        <li>In YNAB, go to <strong>Account Settings → Developer Settings</strong></li>
+        <li>Click <strong>New Token</strong> under Personal Access Tokens</li>
+        <li>Paste it below</li>
+      </ol>
+      <label for="tokenInput">Personal Access Token</label>
+      <input id="tokenInput" type="password" placeholder="paste token here" autocomplete="off">
+      <button class="btn-primary" id="connectBtn">Connect</button>
+      <div class="error-msg" id="setupError">${errorMsg || ''}</div>
+    </div>
+  `;
+  document.getElementById('connectBtn').addEventListener('click', async () => {
+    const token = document.getElementById('tokenInput').value.trim();
+    if(!token) return;
+    const btn = document.getElementById('connectBtn');
+    btn.disabled = true; btn.textContent = 'Connecting…';
+    try{
+      state.token = token;
+      const budgetsData = await ynabFetch('/budgets');
+      state.budgets = budgetsData.budgets;
+      if(state.budgets.length === 0) throw new Error('No budgets found on this account.');
+      state.budgetId = state.budgets[0].id;
+      await storeSet('ynab-token', token);
+      await storeSet('ynab-budget-id', state.budgetId);
+      loadBudgetData();
+    }catch(err){
+      btn.disabled = false; btn.textContent = 'Connect';
+      renderSetup(err.message);
+    }
+  });
+}
+
+function renderLoading(){
+  document.getElementById('content').innerHTML = '<div class="loading"><div class="spinner"></div>Loading budget data…</div>';
+}
+
+async function loadBudgetData(){
+  renderLoading();
+  renderHeaderActions();
+  try{
+    const [accountsData, monthsData, categoriesData, currentMonthData, tagsStored] = await Promise.all([
+      ynabFetch('/budgets/' + state.budgetId + '/accounts'),
+      ynabFetch('/budgets/' + state.budgetId + '/months'),
+      ynabFetch('/budgets/' + state.budgetId + '/categories'),
+      ynabFetch('/budgets/' + state.budgetId + '/months/current'),
+      storeGet('ynab-account-tags')
+    ]);
+    state.accounts = accountsData.accounts.filter(a => !a.deleted && !a.closed);
+    state.months = monthsData.months.filter(m => !m.deleted).sort((a,b) => a.month.localeCompare(b.month));
+    state.categoryGroups = categoriesData.category_groups;
+    state.currentMonthCategories = currentMonthData.month.categories;
+    state.tags = tagsStored ? JSON.parse(tagsStored) : {};
+    const budget = state.budgets.find(b => b.id === state.budgetId);
+    document.getElementById('budgetName').textContent = (budget ? budget.name : 'Budget') + ' — dashboard';
+    renderDashboard();
+  }catch(err){
+    document.getElementById('content').innerHTML = `<div class="card"><div class="error-msg">${err.message}</div></div>`;
+  }
+}
+
+async function setTag(accountId, tag){
+  state.tags[accountId] = tag;
+  await storeSet('ynab-account-tags', JSON.stringify(state.tags));
+  renderDashboard();
+}
+
+const DEFAULT_TAGS_BY_NAME = {
+  '324 south 9th st': 'realestate'
+};
+
+function classifyAccount(acct){
+  const t = acct.type;
+  if(['checking','savings','cash'].includes(t)) return 'cash';
+  if(['creditCard','lineOfCredit','otherLiability','autoLoan','studentLoan','personalLoan','medicalDebt','otherDebt'].includes(t)) return 'debt';
+  if(t === 'mortgage') return 'realestate-debt';
+  if(t === 'otherAsset'){
+    if(state.tags[acct.id]) return state.tags[acct.id];
+    const byName = DEFAULT_TAGS_BY_NAME[acct.name.trim().toLowerCase()];
+    return byName || 'invest'; // default: treat other-asset accounts as investments unless known otherwise
+  }
+  return 'other';
+}
+
+function renderDashboard(){
+  // ---- Income ----
+  const last12 = state.months.slice(-12);
+  const thisMonthIncome = last12.length ? last12[last12.length-1].income : 0;
+  const avg6 = state.months.slice(-6).reduce((s,m)=>s+m.income,0) / Math.min(6, state.months.length || 1);
+  const avg12 = last12.reduce((s,m)=>s+m.income,0) / (last12.length || 1);
+
+  // ---- Net worth ----
+  let cash=0, debt=0, invest=0, realEstateAsset=0, realEstateDebt=0, otherAssets=0, unclassified=[];
+  state.accounts.forEach(a=>{
+    const c = classifyAccount(a);
+    if(c === 'cash') cash += a.balance;
+    else if(c === 'debt') debt += a.balance;
+    else if(c === 'realestate-debt') realEstateDebt += a.balance;
+    else if(c === 'invest') invest += a.balance;
+    else if(c === 'realestate') realEstateAsset += a.balance;
+    else if(c === 'other') otherAssets += a.balance;
+    else unclassified.push(a);
+  });
+  const netWorth = cash + debt + invest + realEstateAsset + realEstateDebt + otherAssets +
+    unclassified.reduce((s,a)=>s+a.balance,0);
+
+  // ---- Spending by category group, current month ----
+  const groupTotals = {};
+  state.currentMonthCategories.forEach(cat=>{
+    if(cat.hidden || cat.deleted) return;
+    const grp = state.categoryGroups.find(g => g.id === cat.category_group_id);
+    if(!grp || grp.hidden) return;
+    const name = grp.name;
+    groupTotals[name] = (groupTotals[name] || 0) + Math.abs(Math.min(0, cat.activity));
+  });
+  const spendEntries = Object.entries(groupTotals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxSpend = spendEntries.length ? spendEntries[0][1] : 1;
+  const totalSpend = spendEntries.reduce((s,[,v])=>s+v,0);
+
+  document.getElementById('content').innerHTML = `
+    <div class="card">
+      <h3>Income vs. Expenses</h3>
+      <div class="hero">
+        <div>
+          <div class="hero-label">Income this month so far</div>
+          <div class="hero-num">${fmtMoney(thisMonthIncome)}</div>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat"><div class="v">${fmtMoney(avg6)}</div><div class="l">Income · 6-mo avg</div></div>
+          <div class="hero-stat"><div class="v">${fmtMoney(avg12)}</div><div class="l">Income · 12-mo avg</div></div>
+        </div>
+      </div>
+      <div class="legend-row">
+        <span><span class="legend-dot" style="background:var(--green);"></span>Income</span>
+        <span><span class="legend-dot" style="background:var(--rust);"></span>Expenses</span>
+      </div>
+      <canvas id="trendChart"></canvas>
+    </div>
+
+    <div class="card">
+      <h3>Net Worth</h3>
+      <div class="nw-total">${fmtMoney(netWorth)}</div>
+      <div class="nw-grid">
+        <div class="nw-tile cash"><div class="l">Cash &amp; checking</div><div class="v">${fmtMoney(cash)}</div></div>
+        <div class="nw-tile invest"><div class="l">Investments</div><div class="v">${fmtMoney(invest)}</div></div>
+        <div class="nw-tile realestate"><div class="l">Real estate (net)</div><div class="v">${fmtMoney(realEstateAsset + realEstateDebt)}</div></div>
+        <div class="nw-tile debt"><div class="l">Debt</div><div class="v">${fmtMoney(debt)}</div></div>
+      </div>
+      <div id="acctGroups"></div>
+    </div>
+
+    <div class="card">
+      <h3>Spending this month <span style="font-weight:400;text-transform:none;letter-spacing:0;">— ${fmtMoney(totalSpend)}</span></h3>
+      <div id="spendList"></div>
+    </div>
+  `;
+
+  // ---- Grouped account sections ----
+  const groups = {
+    cash:       { label: 'Cash & checking',  cls: 'cash',       accts: [] },
+    invest:     { label: 'Investments',      cls: 'invest',     accts: [] },
+    realestate: { label: 'Real estate',      cls: 'realestate', accts: [] },
+    debt:       { label: 'Debt',             cls: 'debt',       accts: [] },
+    other:      { label: 'Other',            cls: '',           accts: [] },
+    unclassified:{label: 'Needs classifying', cls: '',          accts: [] }
+  };
+  state.accounts.forEach(a=>{
+    const c = classifyAccount(a);
+    if(c === 'cash') groups.cash.accts.push(a);
+    else if(c === 'debt') groups.debt.accts.push(a);
+    else if(c === 'realestate-debt') groups.realestate.accts.push(a);
+    else if(c === 'invest') groups.invest.accts.push(a);
+    else if(c === 'realestate') groups.realestate.accts.push(a);
+    else if(c === 'other') groups.other.accts.push(a);
+    else groups.unclassified.accts.push(a);
+  });
+  Object.values(groups).forEach(g => g.accts.sort((a,b)=>b.balance-a.balance));
+
+  function acctRow(a, opts){
+    opts = opts || {};
+    const currentTag = state.tags[a.id];
+    const isOtherAsset = a.type === 'otherAsset';
+    const rowId = 'tagrow-' + a.id;
+    return `
+      <div class="acct-row" style="flex-direction:column;align-items:stretch;">
+        <div style="display:flex;justify-content:space-between;">
+          <span class="acct-name">${a.name}</span>
+          <span class="acct-bal ${a.balance<0?'neg':''}">${fmtMoney(a.balance)}</span>
+        </div>
+        ${isOtherAsset && !opts.forceOpen ? `<button class="reclassify-link" data-toggle="${rowId}">reclassify</button>` : ''}
+        ${isOtherAsset ? `
+        <div class="tag-row ${opts.forceOpen ? 'open' : ''}" id="${rowId}">
+          <button class="tag-btn ${currentTag==='invest'?'active':''}" data-acct="${a.id}" data-tag="invest">Investment</button>
+          <button class="tag-btn ${currentTag==='realestate'?'active':''}" data-acct="${a.id}" data-tag="realestate">Real estate</button>
+          <button class="tag-btn ${currentTag==='other'?'active':''}" data-acct="${a.id}" data-tag="other">Other</button>
+        </div>` : ''}
+      </div>
+    `;
+  }
+
+  const acctGroupsEl = document.getElementById('acctGroups');
+  acctGroupsEl.innerHTML = Object.entries(groups).map(([key, g]) => {
+    if(g.accts.length === 0) return '';
+    const subtotal = g.accts.reduce((s,a)=>s+a.balance,0);
+    const rows = g.accts.map(a => acctRow(a, { forceOpen: key === 'unclassified' })).join('');
+    const note = key === 'unclassified' ? '<div class="unclassified-note">Tag these so they roll into Investments or Real Estate above.</div>' : '';
+    return `
+      <div class="group-block ${g.cls}">
+        <div class="group-head"><span>${g.label}</span><span class="gv">${fmtMoney(subtotal)}</span></div>
+        ${note}
+        ${rows}
+      </div>
+    `;
+  }).join('');
+
+  acctGroupsEl.querySelectorAll('.tag-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> setTag(btn.dataset.acct, btn.dataset.tag));
+  });
+  acctGroupsEl.querySelectorAll('.reclassify-link').forEach(link=>{
+    link.addEventListener('click', ()=>{
+      const row = document.getElementById(link.dataset.toggle);
+      if(row) row.classList.toggle('open');
+    });
+  });
+
+  // spending list
+  const spendListEl = document.getElementById('spendList');
+  if(spendEntries.length === 0){
+    spendListEl.innerHTML = '<div class="empty">No spending recorded yet this month.</div>';
+  } else {
+    spendListEl.innerHTML = spendEntries.map(([name, amt]) => `
+      <div class="spend-row">
+        <div class="spend-top"><span class="spend-name">${name}</span><span class="spend-amt">${fmtMoney(amt)}</span></div>
+        <div class="spend-bar-bg"><div class="spend-bar-fill" style="width:${(amt/maxSpend*100).toFixed(1)}%"></div></div>
+      </div>
+    `).join('');
+  }
+
+  // income vs expenses trend chart
+  const ctx = document.getElementById('trendChart');
+  const labels = last12.map(m => {
+    const [y,mo] = m.month.split('-');
+    return new Date(y, mo-1, 1).toLocaleDateString('en-US', {month:'short'});
+  });
+  const incomeData = last12.map(m => m.income/1000);
+  const expenseData = last12.map(m => Math.abs(m.activity)/1000);
+
+  const chartCtx = ctx.getContext('2d');
+  const incomeGradient = chartCtx.createLinearGradient(0,0,0,220);
+  incomeGradient.addColorStop(0, 'rgba(79,209,165,0.35)');
+  incomeGradient.addColorStop(1, 'rgba(79,209,165,0)');
+  const expenseGradient = chartCtx.createLinearGradient(0,0,0,220);
+  expenseGradient.addColorStop(0, 'rgba(240,135,107,0.30)');
+  expenseGradient.addColorStop(1, 'rgba(240,135,107,0)');
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Income', data: incomeData,
+          borderColor: '#4FD1A5', backgroundColor: incomeGradient,
+          fill: true, tension: 0.4, borderWidth: 2.5,
+          pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: '#4FD1A5', pointHoverBorderWidth: 0
+        },
+        {
+          label: 'Expenses', data: expenseData,
+          borderColor: '#F0876B', backgroundColor: expenseGradient,
+          fill: true, tension: 0.4, borderWidth: 2.5,
+          pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: '#F0876B', pointHoverBorderWidth: 0
+        }
+      ]
+    },
+    options: {
+      responsive:true,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#21262C', borderColor:'#2C3137', borderWidth:1,
+          titleFont:{family:"'Inter'", weight:'600'}, bodyFont:{family:"'IBM Plex Mono'"},
+          padding:10, boxPadding:4,
+          callbacks:{ label: c => ' ' + c.dataset.label + ': $' + c.parsed.y.toLocaleString('en-US',{maximumFractionDigits:0}) }
+        }
+      },
+      scales:{
+        y:{
+          ticks:{ callback: v => '$' + v.toLocaleString('en-US',{notation:'compact'}), color:'#8B9299', font:{family:"'Inter'", size:11} },
+          grid:{ color:'#2C3137', drawTicks:false },
+          border:{ display:false }
+        },
+        x:{
+          ticks:{ color:'#8B9299', font:{family:"'Inter'", size:11} },
+          grid:{ display:false },
+          border:{ display:false }
+        }
+      }
+    }
+  });
+}
+
+async function init(){
+  const [savedToken, savedBudgetId] = await Promise.all([storeGet('ynab-token'), storeGet('ynab-budget-id')]);
+  if(savedToken){
+    state.token = savedToken;
+    try{
+      const budgetsData = await ynabFetch('/budgets');
+      state.budgets = budgetsData.budgets;
+      state.budgetId = savedBudgetId && state.budgets.some(b=>b.id===savedBudgetId) ? savedBudgetId : (state.budgets[0] && state.budgets[0].id);
+      if(!state.budgetId) throw new Error('No budgets found.');
+      loadBudgetData();
+    }catch(err){
+      renderSetup(err.message);
+    }
+  } else {
+    renderSetup();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
